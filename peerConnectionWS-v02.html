@@ -1,0 +1,170 @@
+<!DOCTYPE html>  
+<!--Student-Tutor Video-Audio-Communication-->
+<html>
+    <head>
+        <title>PeerConnection with an websocket</title>
+    </head>
+    <script>
+    //variables
+    var pc;
+    var ws;
+    var name; 
+    var initiator = false;
+
+    
+    // Local stream generation
+    function gotStream(s) {
+        var url = webkitURL.createObjectURL(s);
+        document.getElementById("localView").src = url;
+        localStream = s;
+        console.log("gotStream" + s)
+        console.log("Started showing loval stream. url = " + url); 
+    }
+    function gotStreamFailed(error) {
+        console.log("Failed to get access to local media. Error code was " 
+                    + error.code + ".");
+    }
+    function getUserMedia() {
+        try {
+            navigator.webkitGetUserMedia({audio:true, video:true}, 
+                                        gotStream, gotStreamFailed);
+        console.log("Requested access to local media");
+        } catch (e) {
+            console.log(e, "getUserMedia error");
+        }
+    }
+    
+    //peerConnection generation
+    function genreatePeerConnection(){
+        try{
+            pc = new webkitPeerConnection00("STUN stun.l.google.com:19302", onIceCandidate);
+            console.log("new peerConnection!");
+            pc.onaddstream = onAddStream;
+            pc.onremovestream = onRemoveStream;
+        }catch (e){
+            console.log(e, "generatePeerConnection error");
+        }
+    }
+    function onAddStream(e) {
+        var stream = e.stream;
+        var url = webkitURL.createObjectURL(stream);
+        try{
+            document.getElementById("remoteView").src = url;
+            console.log("Started showing remote stream. url = " + url);
+        }catch (e){
+            console.log(e, "no Video error...");
+        }
+
+    }
+    function onRemoveStream(e) {
+        // Currently if we get this callback, call has ended.
+        document.getElementById("remoteView").src = "";
+        trace("Stopped showing remote stream");
+    }
+    function onIceCandidate(candidate, moreToFollow) {
+        console.log("candidate: " + candidate);
+        if (candidate) {
+            sendMessage({type: 'candidate',
+                        label: candidate.label, candidate: candidate.toSdp()});
+        }
+    }
+    //add the stream and call the doCall function if the client is the dozent.
+    function startCall() {
+        console.log("adding stream" + localStream);
+        pc.addStream(localStream);
+        if (initiator){
+            doCall();
+        }    
+    }
+    function doCall() { 
+        console.log("Send offer to peer"); 
+        var offer = pc.createOffer({audio:true, video:true}); 
+        sendMessage({type: 'offer', sdp: offer.toSdp()}); 
+        pc.startIce(); 
+    }
+    function doAnswer() {
+        console.log("Send answer to peer");
+        var offer = pc.remoteDescription;
+        var answer = pc.createAnswer(offer.toSdp(),{has_audio:true, has_video:true});
+        pc.setLocalDescription(pc.SDP_ANSWER, answer);
+        sendMessage({type: 'answer', sdp: answer.toSdp()});
+        //pc.startIce();
+    }
+    function processSignalingMessage(message) {
+        var msg = JSON.parse(message.data);
+
+        if (msg.type === 'offer') {
+            // Callee creates PeerConnection
+            if (initiator == false){
+                //Generate the peerConnection if the client is a student. 
+                genreatePeerConnection();
+            }
+            pc.setRemoteDescription(pc.SDP_OFFER, new SessionDescription(msg.sdp));
+            doAnswer();
+        } else if (msg.type === 'answer') {
+            pc.setRemoteDescription(pc.SDP_ANSWER, new SessionDescription(msg.sdp));
+            pc.startIce();
+        } else if (msg.type === 'candidate') {
+            console.log("Candidate...");
+            var candidate = new IceCandidate(msg.label, msg.candidate);
+            pc.processIceMessage(candidate);
+        } else if (msg.type === 'bye') {
+            onRemoteHangup();
+            }
+    }
+
+    //Websocket connection 
+    function openWs(){
+        ws = new WebSocket("ws://localhost:10081");
+        ws.onopen = function() {
+                        console.log("Openned websocket connection");
+                    }
+        ws.onmessage = function (evt){
+        //The websocket sends an message wich role the client has. 
+        //Does the Message not contains any role name, the message conains SDP informations. 
+                            if (evt.data.indexOf("Dozent") !=-1) {
+                                initiator = true;
+                                genreatePeerConnection();
+                            }else if (evt.data.indexOf("Student") !=-1){
+                                initator = false;
+                            }
+                            else{
+                                processSignalingMessage(evt);
+                            }    
+                       }
+    }
+    
+    //sendMessage to websocket
+    function sendMessage(msg){
+        var stringMsg = JSON.stringify(msg);
+        ws.send(stringMsg);        
+    }
+    //send the role of the client to the websocket.
+    function sendRole(selectRole){
+        if (selectRole.value=="null"){
+            console.log("Please select your role");
+        }else{
+            console.log("name: " + selectRole.value);
+            ws.send("name: " + selectRole.value);
+        }
+    }
+    </script>
+    <body>
+    1. Step: activate your webcam:
+    <button id="getMedia" onclick="getUserMedia();">Cam</button> <br>
+    2. Step: connect to the websocket:
+    <button id="connect" onclick="openWs();">Connection</button><br>
+    3. Step: use a role:
+        <select id="roleMenu" onChange="sendRole(this)">
+            <option value="null">select a role</option>
+            <option value="student">Student</option>
+            <option value="dozent">Dozent</option>
+        </select><br>
+    4. Step (If you are the dozent): start the call:
+<!--    The Student get called by the dozent.-->
+    <button id="call" onclick="startCall();">Call</button> <br>
+        <video id="localView" width="352" height="288" autoplay></video>
+        <video id="remoteView" width="352" height="288" autoplay></video>
+
+    </body>
+</html>
