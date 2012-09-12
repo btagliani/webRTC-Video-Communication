@@ -120,7 +120,7 @@
                         console.log("Openned websocket connection");
                     }
         ws.onmessage = function (evt){
-        //The websocket sends an message wich role the client has. 
+        //The websocket sends an message which role the client has. 
         //Does the Message not contains any role name, the message conains SDP informations. 
                             if (evt.data.indexOf("Dozent") !=-1) {
                                 initiator = true;
