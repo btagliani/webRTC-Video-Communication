@@ -4,7 +4,7 @@ require File.expand_path('../../lib/em-websocket', __FILE__)
 @clients = {}
 @student = {}
 @dozent = {}
-EventMachine::WebSocket.start(:host => "localhost", :port => 10081, :debug => false) do |ws|
+EventMachine::WebSocket.start(:host => "10.68.0.88", :port => 10081, :debug => false) do |ws|
   ws.onopen    do
     client_id = ws.object_id
     if !@clients.include? client_id
@@ -23,11 +23,14 @@ EventMachine::WebSocket.start(:host => "localhost", :port => 10081, :debug => fa
         puts "client " + client_id.to_s + "is a dozent"
         @dozent[client_id] = ws
         @dozent[client_id].send "id: " + client_id.to_s + " Rolle: Dozent"
-    end 
-    
-    @clients.each do |client_id, client_ws|
-        client_ws.send "#{msg}"
+    else
+        @clients.each do |clientId, clientWs|
+            if clientId != client_id
+                puts 'Send to client' + clientId.to_s + 'the follow message: ' + msg
+                clientWs.send "#{msg}"
+            end
     end
+  end
 
   end
   

@@ -62,7 +62,7 @@
         trace("Stopped showing remote stream");
     }
     function onIceCandidate(candidate, moreToFollow) {
-        console.log("candidate: " + candidate);
+        console.log("candidate: " + candidate.type);
         if (candidate) {
             sendMessage({type: 'candidate',
                         label: candidate.label, candidate: candidate.toSdp()});
@@ -79,6 +79,7 @@
     function doCall() { 
         console.log("Send offer to peer"); 
         var offer = pc.createOffer({audio:true, video:true}); 
+        pc.setLocalDescription(pc.SDP_OFFER, offer);
         sendMessage({type: 'offer', sdp: offer.toSdp()}); 
         pc.startIce(); 
     }
@@ -88,25 +89,29 @@
         var answer = pc.createAnswer(offer.toSdp(),{has_audio:true, has_video:true});
         pc.setLocalDescription(pc.SDP_ANSWER, answer);
         sendMessage({type: 'answer', sdp: answer.toSdp()});
-        //pc.startIce();
+        pc.startIce();
     }
     function processSignalingMessage(message) {
         var msg = JSON.parse(message.data);
-
+        console.log("msg: " + msg.type);
         if (msg.type === 'offer') {
             // Callee creates PeerConnection
             if (initiator == false){
                 //Generate the peerConnection if the client is a student. 
                 genreatePeerConnection();
+                console.log("initioator false");
             }
+            console.log("SDP OFFER");
             pc.setRemoteDescription(pc.SDP_OFFER, new SessionDescription(msg.sdp));
             doAnswer();
         } else if (msg.type === 'answer') {
-            pc.setRemoteDescription(pc.SDP_ANSWER, new SessionDescription(msg.sdp));
-            pc.startIce();
+            console.log("SDP ANSWER" + msg.sdp);
+            pc.setRemoteDescription(pc.SDP_ANSWER, new SessionDescription(msg.sdp)); //<= this ist the DOM error problem! 
+            console.log("Test");
+            //pc.startIce();
         } else if (msg.type === 'candidate') {
-            console.log("Candidate...");
             var candidate = new IceCandidate(msg.label, msg.candidate);
+            console.log("candidate new: " + msg.candidate);
             pc.processIceMessage(candidate);
         } else if (msg.type === 'bye') {
             onRemoteHangup();
@@ -115,12 +120,12 @@
 
     //Websocket connection 
     function openWs(){
-        ws = new WebSocket("ws://localhost:10081");
+        ws = new WebSocket("ws://10.68.0.88:10081");
         ws.onopen = function() {
                         console.log("Openned websocket connection");
                     }
         ws.onmessage = function (evt){
-        //The websocket sends an message which role the client has. 
+        //The websocket sends an message wich role the client has. 
         //Does the Message not contains any role name, the message conains SDP informations. 
                             if (evt.data.indexOf("Dozent") !=-1) {
                                 initiator = true;
